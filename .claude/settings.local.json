@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(npm install *)",
+      "Bash(node *)",
+      "Bash(curl *)",
+      "Bash(npx create-react-app *)",
+      "Bash(npx tailwindcss *)",
+      "Bash(npm start *)",
+      "Bash(pkill -f \"react-scripts\")",
+      "Bash(npm uninstall *)",
+      "Bash(pkill -f \"node\")",
+      "Bash(netstat -ano)",
+      "Bash(taskkill //F //PID 12024)",
+      "Bash(taskkill //F //PID 23200)",
+      "Bash(taskkill //F //PID 20520)",
+      "Bash(findstr :3000)",
+      "Bash(PORT=3001 npm start)",
+      "Bash(findstr :5000)",
+      "Bash(findstr :3001)",
+      "Bash(findstr LISTENING)",
+      "Bash(taskkill /F /PID 16912)",
+      "PowerShell(Stop-Process *)"
+    ]
+  }
+}
