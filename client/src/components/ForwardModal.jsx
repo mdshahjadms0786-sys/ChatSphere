@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-import api from '../utils/axios'
 import toast from 'react-hot-toast'
 
 const ForwardModal = ({ 

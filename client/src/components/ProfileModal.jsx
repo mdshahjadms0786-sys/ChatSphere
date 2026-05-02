@@ -9,6 +9,7 @@ const ProfileModal = ({ user, onClose, onUpdate, currentUser }) => {
   const [blockLoading, setBlockLoading] = useState(false);
   const fileInputRef = React.useRef(null);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (user?._id) {
       checkBlockStatus();

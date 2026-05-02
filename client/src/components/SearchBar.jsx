@@ -15,6 +15,7 @@ const SearchBar = ({ conversationId, onClose, onResultClick }) => {
     };
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const searchMessages = useCallback(
     debounce(async (searchQuery) => {
       if (searchQuery.length < 2) {

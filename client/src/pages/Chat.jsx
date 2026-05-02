@@ -48,6 +48,7 @@ const Chat = () => {
   const recordingTimerRef = useRef(null);
   const audioChunksRef = useRef([]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchConversations();
   }, []);
@@ -71,6 +72,7 @@ const Chat = () => {
     }
   }, [messages]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!socket) return;
 

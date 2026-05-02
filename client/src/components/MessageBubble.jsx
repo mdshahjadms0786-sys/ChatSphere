@@ -120,7 +120,7 @@ const MessageBubble = ({ message, currentUser, onDelete, onReply, onReact, onFor
           <div>
             <img
               src={message.imageUrl}
-              alt="Shared image"
+              alt="attachment"
               onClick={() => setShowImagePreview(true)}
               style={{
                 maxWidth: '200px',
