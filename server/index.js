@@ -15,7 +15,7 @@ const passport = require('./config/passport');
 const app = express();
 const server = http.createServer(app);
 
-// Socket.io setup
+// Socket-io setup
 const io = new Server(server, {
   cors: {
     origin: function(origin, callback) {
@@ -23,7 +23,8 @@ const io = new Server(server, {
     },
     methods: ['GET', 'POST'],
     credentials: true
-  }
+  },
+  transports: ['websocket', 'polling']
 });
 
 // Socket handler
@@ -34,11 +35,23 @@ socketHandler(io);
 app.use(helmet());
 app.use(cors({
   origin: function(origin, callback) {
-    callback(null, true)
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002',
+      'https://chat-sphere-woad.vercel.app',
+      'https://chatsphere-client.vercel.app'
+    ]
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(null, true)
+    }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  exposedHeaders: ['set-cookie']
 }));
 app.use(morgan('dev'));
 app.use(express.json());
