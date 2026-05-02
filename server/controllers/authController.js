@@ -87,10 +87,12 @@ const loginUser = async (req, res, next) => {
 
 const logoutUser = async (req, res, next) => {
   try {
+    const isProduction = process.env.NODE_ENV === 'production';
+
     res.cookie('chatsphere_token', '', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       path: '/',
       maxAge: 0,
       expires: new Date(0),
