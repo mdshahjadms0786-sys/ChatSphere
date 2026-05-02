@@ -13,8 +13,11 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      required: function () {
+        return !this.phone;
+      },
       unique: true,
+      sparse: true,
       lowercase: true,
       trim: true,
     },

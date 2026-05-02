@@ -421,7 +421,9 @@ const Chat = () => {
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px'
+            gap: '8px',
+            flexWrap: 'wrap',
+            justifyContent: 'flex-end'
           }}>
             <span style={{fontSize: '24px'}}>💬</span>
             <span style={{
@@ -436,7 +438,9 @@ const Chat = () => {
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px'
+            gap: '8px',
+            flexWrap: 'wrap',
+            justifyContent: 'flex-end'
           }}>
             <button
               onClick={() => setShowCreateGroup(true)}
@@ -504,7 +508,9 @@ const Chat = () => {
                 borderRadius: '8px',
                 padding: '4px 10px',
                 cursor: 'pointer',
-                fontSize: '13px'
+                fontSize: '13px',
+                flexBasis: '100%',
+                textAlign: 'center'
               }}
             >
               Logout

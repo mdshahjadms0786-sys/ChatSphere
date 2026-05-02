@@ -9,6 +9,11 @@ import { useAuth } from '../context/AuthContext'
 const Login = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [phone, setPhone] = useState('')
+  const [otp, setOtp] = useState('')
+  const [otpName, setOtpName] = useState('')
+  const [otpStep, setOtpStep] = useState('phone')
+  const [otpLoading, setOtpLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -38,7 +43,49 @@ const Login = () => {
   }
 
   const handleGoogleLogin = () => {
-   window.location.href = process.env.REACT_APP_API_URL + '/api/auth/google'
+    window.location.href = (process.env.REACT_APP_API_URL || 'http://localhost:5000') + '/api/auth/google'
+  }
+
+  const handleSendOtp = async () => {
+    if (!phone.trim()) {
+      toast.error('Please enter your phone number')
+      return
+    }
+
+    setOtpLoading(true)
+    try {
+      const { data } = await api.post('/auth/send-otp', { phone: phone.trim() })
+      setPhone(data.phone || phone.trim())
+      setOtpStep('verify')
+      toast.success('OTP sent successfully')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to send OTP')
+    } finally {
+      setOtpLoading(false)
+    }
+  }
+
+  const handleVerifyOtp = async () => {
+    if (!otpName.trim() || !phone.trim() || !otp.trim()) {
+      toast.error('Please fill in all OTP fields')
+      return
+    }
+
+    setOtpLoading(true)
+    try {
+      const { data } = await api.post('/auth/verify-otp', {
+        name: otpName.trim(),
+        phone: phone.trim(),
+        otp: otp.trim()
+      })
+      auth.login(data.user)
+      toast.success('Logged in successfully')
+      navigate('/chat')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'OTP verification failed')
+    } finally {
+      setOtpLoading(false)
+    }
   }
 
   return (
@@ -111,12 +158,67 @@ const Login = () => {
           Continue with Google
         </button>
 
-        <button
-          onClick={() => toast.success('OTP login coming soon!')}
-          className="w-full mt-4 border border-primary-500 text-primary-500 hover:bg-primary-500/10 font-semibold rounded-lg p-3 transition-colors"
-        >
-          Login with Phone OTP
-        </button>
+        {otpStep === 'phone' && (
+          <button
+            onClick={handleSendOtp}
+            disabled={otpLoading}
+            className="w-full mt-4 border border-primary-500 text-primary-500 hover:bg-primary-500/10 font-semibold rounded-lg p-3 transition-colors"
+          >
+            {otpLoading ? 'Sending OTP...' : 'Login with Phone OTP'}
+          </button>
+        )}
+
+        <div className="mt-4 space-y-3">
+          {otpStep === 'phone' ? (
+            <input
+              type="tel"
+              placeholder="Phone number"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full bg-dark-200 border border-dark-100 text-white rounded-lg p-3 focus:outline-none focus:border-primary-500 transition-colors"
+            />
+          ) : (
+            <>
+              <input
+                type="text"
+                placeholder="Your name"
+                value={otpName}
+                onChange={(e) => setOtpName(e.target.value)}
+                className="w-full bg-dark-200 border border-dark-100 text-white rounded-lg p-3 focus:outline-none focus:border-primary-500 transition-colors"
+              />
+              <input
+                type="tel"
+                placeholder="Phone number"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full bg-dark-200 border border-dark-100 text-white rounded-lg p-3 focus:outline-none focus:border-primary-500 transition-colors"
+              />
+              <input
+                type="text"
+                placeholder="Enter OTP"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                className="w-full bg-dark-200 border border-dark-100 text-white rounded-lg p-3 focus:outline-none focus:border-primary-500 transition-colors"
+              />
+              <button
+                type="button"
+                onClick={handleVerifyOtp}
+                disabled={otpLoading}
+                className="w-full bg-primary-500 hover:bg-primary-600 text-white font-semibold rounded-lg p-3 transition-colors disabled:opacity-50"
+              >
+                {otpLoading ? 'Verifying OTP...' : 'Continue to Chat'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSendOtp}
+                disabled={otpLoading}
+                className="w-full text-sm text-primary-500 hover:underline"
+              >
+                Resend OTP
+              </button>
+            </>
+          )}
+        </div>
 
         <p className="text-gray-400 text-center mt-6">
           Don't have an account?{' '}

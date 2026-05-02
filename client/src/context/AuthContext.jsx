@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import api from '../utils/axios'
 
 const AuthContext = createContext()
+const publicRoutes = new Set(['/login', '/register'])
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
@@ -9,6 +10,11 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   useEffect(() => {
+    if (publicRoutes.has(window.location.pathname)) {
+      setLoading(false)
+      return
+    }
+
     const checkAuth = async () => {
       try {
         const { data } = await api.get('/auth/me')
@@ -21,6 +27,7 @@ export const AuthProvider = ({ children }) => {
         setLoading(false)
       }
     }
+
     checkAuth()
   }, [])
 
