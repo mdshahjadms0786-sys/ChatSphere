@@ -66,6 +66,51 @@ const userSchema = new mongoose.Schema(
       ref: 'User',
       default: []
     }],
+    // Advanced features
+    starredMessages: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Message',
+      default: []
+    }],
+    theme: {
+      type: String,
+      enum: ['dark', 'light', 'system'],
+      default: 'dark',
+    },
+    chatWallpaper: {
+      type: String,
+      default: '',
+    },
+    notificationSettings: {
+      sound: { type: Boolean, default: true },
+      desktop: { type: Boolean, default: true },
+      messagePreview: { type: Boolean, default: true },
+    },
+    privacySettings: {
+      lastSeen: {
+        type: String,
+        enum: ['everyone', 'contacts', 'nobody'],
+        default: 'everyone',
+      },
+      profilePhoto: {
+        type: String,
+        enum: ['everyone', 'contacts', 'nobody'],
+        default: 'everyone',
+      },
+      about: {
+        type: String,
+        enum: ['everyone', 'contacts', 'nobody'],
+        default: 'everyone',
+      },
+    },
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpire: {
+      type: Date,
+      select: false,
+    },
   },
   { timestamps: true }
 );

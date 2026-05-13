@@ -38,9 +38,28 @@ const conversationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
+    // Advanced features
+    pinnedMessages: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Message',
+      default: [],
+    }],
+    description: {
+      type: String,
+      default: '',
+      maxlength: 256,
+    },
+    isMuted: {
+      type: Map,
+      of: Boolean,
+      default: {},
+    },
   },
   { timestamps: true }
 );
+
+// Index for faster queries
+conversationSchema.index({ participants: 1, lastMessageTime: -1 });
 
 const Conversation = mongoose.model('Conversation', conversationSchema);
 

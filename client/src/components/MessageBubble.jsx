@@ -5,7 +5,10 @@ import AudioPlayer from "./AudioPlayer";
 
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
-const MessageBubble = ({ message, currentUser, onDelete, onReply, onReact, onForward }) => {
+const MessageBubble = ({ 
+  message, currentUser, onDelete, onReply, onReact, onForward,
+  onPin, onStar, onEdit 
+}) => {
   const [showReactions, setShowReactions] = useState(false);
   const [showDeleteOptions, setShowDeleteOptions] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -76,7 +79,7 @@ const MessageBubble = ({ message, currentUser, onDelete, onReply, onReact, onFor
 
   return (
     <div
-      className={`flex mb-4 ${isSent ? "justify-end" : "justify-start"}`}
+      className={`flex mb-2 ${isSent ? "justify-end" : "justify-start"}`}
       onMouseEnter={() => setShowReactions(true)}
       onMouseLeave={() => {
         setShowReactions(false);
@@ -86,51 +89,46 @@ const MessageBubble = ({ message, currentUser, onDelete, onReply, onReact, onFor
       {!isSent && renderAvatar()}
 
       <div
-        className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-xl shadow ${
-          isSent
-            ? "bg-blue-500 text-white rounded-br-none"
-            : "bg-gray-700 text-white rounded-bl-none"
+        className={`relative max-w-xs lg:max-w-md px-3 py-2 rounded-2xl shadow-sm ${
+          isSent ? "rounded-tr-none" : "rounded-tl-none"
         }`}
+        style={{ 
+          backgroundColor: isSent ? 'var(--bg-bubble-sent)' : 'var(--bg-bubble-recv)',
+          color: isSent ? 'white' : 'var(--text-main)',
+          border: isSent ? 'none' : '1px solid var(--border-color)'
+        }}
       >
+        {message.isPinned && (
+          <div className="flex items-center gap-1 mb-1 text-[10px] text-yellow-400">
+            📌 Pinned
+          </div>
+        )}
+
         {message.replyTo && (
-          <div className="bg-gray-800 border-l-4 border-blue-500 pl-3 py-1 mb-2 rounded-md">
-            <p className="text-xs text-blue-400">
+          <div className="bg-black/20 border-l-2 border-white/50 pl-2 py-1 mb-2 rounded">
+            <p className="text-[10px] opacity-70">
               Replying to {message.replyTo.sender?.name || "message"}
             </p>
-            <p className="text-sm text-gray-400 truncate">
+            <p className="text-xs truncate opacity-90">
               {message.replyTo.content}
             </p>
           </div>
         )}
 
         {message.isForwarded && (
-          <p style={{
-            fontSize: '11px',
-            color: 'rgba(255,255,255,0.6)',
-            margin: '0 0 4px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px'
-          }}>
+          <p className="text-[10px] opacity-60 mb-1 flex items-center gap-1">
             ↪ Forwarded
           </p>
         )}
 
         {message.type === 'image' && message.imageUrl && (
-          <div>
+          <div className="mb-2">
             <img
               src={message.imageUrl}
               alt="attachment"
               onClick={() => setShowImagePreview(true)}
-              style={{
-                maxWidth: '200px',
-                maxHeight: '200px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                objectFit: 'cover',
-                display: 'block',
-                marginBottom: '4px',
-              }}
+              className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+              style={{ maxHeight: '250px', objectFit: 'cover' }}
             />
             {showImagePreview && (
               <ImagePreview
@@ -142,29 +140,32 @@ const MessageBubble = ({ message, currentUser, onDelete, onReply, onReact, onFor
         )}
 
         {message.type === 'audio' && message.audioUrl && (
-          <AudioPlayer audioUrl={message.audioUrl} />
+          <div className="mb-1">
+            <AudioPlayer audioUrl={message.audioUrl} />
+          </div>
         )}
 
-        <p className="text-sm">{message.content}</p>
-
-        <div
-          className={`text-xs mt-1 ${
-            isSent ? "text-blue-200 text-right" : "text-gray-400"
-          }`}
-        >
-          {formatTime(message.createdAt)}
-          {isSent && <span className="ml-1 inline-block">{renderStatus()}</span>}
+        <div className="flex flex-col">
+          <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+          <div
+            className={`flex items-center justify-end gap-1 mt-1`}
+            style={{ fontSize: '10px', color: isSent ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}
+          >
+            {message.isEdited && <span>(edited)</span>}
+            {formatTime(message.createdAt)}
+            {isSent && renderStatus()}
+          </div>
         </div>
 
         {message.reactions && message.reactions.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-2">
+          <div className="flex flex-wrap gap-1 mt-1">
             {message.reactions.map((reaction) => (
               <span
                 key={reaction.emoji}
-                className={`flex items-center text-xs px-2 py-1 rounded-full cursor-pointer ${
+                className={`flex items-center text-[10px] px-2 py-0.5 rounded-full cursor-pointer transition-colors ${
                   reaction.users.includes(currentUser._id)
-                    ? "bg-blue-600"
-                    : "bg-gray-600"
+                    ? "bg-blue-800 border border-blue-400"
+                    : "bg-gray-700 border border-transparent"
                 }`}
                 onClick={() => onReact(message._id, reaction.emoji)}
               >
@@ -177,90 +178,106 @@ const MessageBubble = ({ message, currentUser, onDelete, onReply, onReact, onFor
         {showReactions && (
           <div
             className={`absolute ${
-              isSent ? "-left-20" : "-right-20"
-            } top-1/2 -translate-y-1/2 flex gap-2`}
+              isSent ? "-left-40" : "-right-40"
+            } top-1/2 -translate-y-1/2 flex items-center gap-1 bg-gray-900/80 backdrop-blur-sm p-1 rounded-full shadow-xl z-10 transition-all`}
           >
             {isSent && (
-              <button
-                onClick={() => setShowDeleteOptions(!showDeleteOptions)}
-                className="bg-gray-600 p-2 rounded-full text-white hover:bg-gray-500"
-              >
-                🗑
-              </button>
-            )}
-            {showDeleteOptions && isSent && (
-              <div className="absolute top-0 right-12 bg-gray-700 p-2 rounded-md shadow-lg flex flex-col items-start z-10">
+              <div className="relative group">
                 <button
-                  onClick={() => {
-                    onDelete(message._id, false);
-                    setShowDeleteOptions(false);
-                  }}
-                  className="text-sm text-white px-2 py-1 hover:bg-gray-600 w-full text-left"
+                  onClick={() => setShowDeleteOptions(!showDeleteOptions)}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-500/20 text-white text-xs"
+                  title="Delete"
                 >
-                  Delete for me
+                  🗑️
                 </button>
-                <button
-                  onClick={() => {
-                    onDelete(message._id, true);
-                    setShowDeleteOptions(false);
-                  }}
-                  className="text-sm text-white px-2 py-1 hover:bg-gray-600 w-full text-left"
-                >
-                  Delete for everyone
-                </button>
+                {showDeleteOptions && (
+                  <div className="absolute bottom-full left-0 mb-2 bg-gray-800 rounded-lg shadow-2xl overflow-hidden min-w-[120px] border border-gray-700">
+                    <button
+                      onClick={() => { onDelete(message._id, false); setShowDeleteOptions(false); }}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-gray-700 text-white"
+                    >
+                      Delete for me
+                    </button>
+                    <button
+                      onClick={() => { onDelete(message._id, true); setShowDeleteOptions(false); }}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-gray-700 text-red-400"
+                    >
+                      Delete for everyone
+                    </button>
+                  </div>
+                )}
               </div>
             )}
+            
+            {isSent && message.type === 'text' && (
+              <button
+                onClick={() => onEdit && onEdit()}
+                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-yellow-500/20 text-white text-xs"
+                title="Edit"
+              >
+                ✏️
+              </button>
+            )}
+
             <button
               onClick={() => onReply(message)}
-              className="bg-gray-600 p-2 rounded-full text-white hover:bg-gray-500"
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-blue-500/20 text-white text-xs"
+              title="Reply"
             >
-              ↩
+              ↩️
             </button>
+            
+            <button
+              onClick={() => onStar && onStar()}
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-yellow-500/20 text-white text-xs"
+              title="Star"
+            >
+              ⭐
+            </button>
+
+            <button
+              onClick={() => onPin && onPin()}
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-blue-500/20 text-white text-xs"
+              title="Pin"
+            >
+              📌
+            </button>
+
             <button
               onClick={() => onForward && onForward(message)}
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-green-500/20 text-white text-xs"
               title="Forward"
-              style={{
-                background: 'rgba(0,0,0,0.5)',
-                border: 'none',
-                borderRadius: '50%',
-                width: '28px',
-                height: '28px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '14px'
-              }}
             >
-              ↪
+              ↪️
             </button>
+            
             <button
               onClick={() => setShowReactionPicker(!showReactionPicker)}
-              className="bg-gray-600 p-2 rounded-full text-white hover:bg-gray-500"
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-blue-500/20 text-white text-xs"
+              title="React"
             >
               😊
             </button>
+
             {showReactionPicker && (
               <div
                 ref={reactionPickerRef}
                 className={`absolute ${
                   isSent ? "right-full mr-2" : "left-full ml-2"
-                } bottom-0 z-10`}
+                } bottom-0 z-20 bg-gray-800 p-1.5 rounded-full shadow-2xl border border-gray-700 flex gap-1`}
               >
-                <div className="flex gap-1 bg-gray-800 rounded-full p-1 shadow-lg">
-                  {REACTIONS.map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => {
-                        onReact(message._id, emoji);
-                        setShowReactionPicker(false);
-                      }}
-                      className="hover:scale-125 transition-transform text-lg"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
+                {REACTIONS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => {
+                      onReact(message._id, emoji);
+                      setShowReactionPicker(false);
+                    }}
+                    className="hover:scale-125 transition-transform text-lg"
+                  >
+                    {emoji}
+                  </button>
+                ))}
               </div>
             )}
           </div>

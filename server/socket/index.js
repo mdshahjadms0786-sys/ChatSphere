@@ -59,7 +59,7 @@ module.exports = (io) => {
         if (receiverId) {
           const receiverUser = await User.findById(receiverId).select('blockedUsers');
 
-          if (receiverUser.blockedUsers.map(id => id.toString()).includes(data.senderId.toString())) {
+          if (receiverUser && receiverUser.blockedUsers.map(id => id.toString()).includes(data.senderId.toString())) {
             socket.emit('message:blocked', {
               message: 'You are blocked by this user'
             });
@@ -80,6 +80,20 @@ module.exports = (io) => {
 
         if (data.replyTo) {
           messageData.replyTo = data.replyTo;
+        }
+
+        // Detect links and create basic preview
+        if (data.type === 'text' && data.content) {
+          const urlRegex = /(https?:\/\/[^\s]+)/g;
+          const urls = data.content.match(urlRegex);
+          if (urls && urls.length > 0) {
+            messageData.linkPreview = {
+              url: urls[0],
+              title: '',
+              description: '',
+              image: '',
+            };
+          }
         }
 
         const message = await Message.create(messageData);
@@ -115,13 +129,55 @@ module.exports = (io) => {
           message.status = 'read';
           await message.save();
 
-          io.to(onlineUsers.get(message.sender.toString())).emit('message:status', {
-            messageId: message._id,
-            status: 'read',
-          });
+          const senderSocket = onlineUsers.get(message.sender.toString());
+          if (senderSocket) {
+            io.to(senderSocket).emit('message:status', {
+              messageId: message._id,
+              status: 'read',
+            });
+          }
         }
       } catch (error) {
         console.error('Message read error:', error);
+      }
+    });
+
+    // Message edit via socket
+    socket.on('message:edit', async (data) => {
+      try {
+        const Message = require('../models/Message');
+
+        const message = await Message.findById(data.messageId)
+          .populate('sender', 'name avatar');
+
+        if (message) {
+          data.participants.forEach((participantId) => {
+            const socketId = onlineUsers.get(participantId);
+            if (socketId) {
+              io.to(socketId).emit('message:edited', message);
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Message edit socket error:', error);
+      }
+    });
+
+    // Message pin via socket
+    socket.on('message:pin', async (data) => {
+      try {
+        data.participants.forEach((participantId) => {
+          const socketId = onlineUsers.get(participantId);
+          if (socketId) {
+            io.to(socketId).emit('message:pinned', {
+              messageId: data.messageId,
+              isPinned: data.isPinned,
+              conversationId: data.conversationId,
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Pin socket error:', error);
       }
     });
 

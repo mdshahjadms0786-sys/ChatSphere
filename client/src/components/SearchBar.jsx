@@ -25,7 +25,7 @@ const SearchBar = ({ conversationId, onClose, onResultClick }) => {
 
       setLoading(true);
       try {
-        const { data } = await api.get('/api/chat/messages/search', {
+        const { data } = await api.get('/chat/messages/search', {
           params: { q: searchQuery, conversationId },
         });
         setResults(data.messages || []);

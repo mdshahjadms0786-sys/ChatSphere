@@ -18,7 +18,7 @@ const messageSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['text', 'image', 'file', 'audio'],
+      enum: ['text', 'image', 'file', 'audio', 'system'],
       default: 'text',
     },
     readBy: [
@@ -76,9 +76,51 @@ const messageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Advanced features
+    isPinned: {
+      type: Boolean,
+      default: false,
+    },
+    pinnedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    pinnedAt: {
+      type: Date,
+      default: null,
+    },
+    isEdited: {
+      type: Boolean,
+      default: false,
+    },
+    editedAt: {
+      type: Date,
+      default: null,
+    },
+    originalContent: {
+      type: String,
+      default: '',
+    },
+    linkPreview: {
+      url: { type: String, default: '' },
+      title: { type: String, default: '' },
+      description: { type: String, default: '' },
+      image: { type: String, default: '' },
+    },
+    fileInfo: {
+      name: { type: String, default: '' },
+      size: { type: Number, default: 0 },
+      type: { type: String, default: '' },
+    },
   },
   { timestamps: true }
 );
+
+// Index for faster queries
+messageSchema.index({ conversation: 1, createdAt: -1 });
+messageSchema.index({ conversation: 1, isPinned: 1 });
+messageSchema.index({ content: 'text' });
 
 const Message = mongoose.model('Message', messageSchema);
 

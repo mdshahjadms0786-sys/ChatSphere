@@ -73,7 +73,7 @@ const ForwardModal = ({
         flexDirection: 'column'
       }}>
         
-        Header:
+        {/* Header */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -97,7 +97,7 @@ const ForwardModal = ({
           }}>×</button>
         </div>
 
-        Message preview:
+        {/* Message preview */}
         <div style={{
           backgroundColor: '#0d1721',
           borderRadius: '8px',
@@ -128,7 +128,7 @@ const ForwardModal = ({
           </p>
         </div>
 
-        Conversations list:
+        {/* Conversations list */}
         <p style={{
           color: '#9ca3af',
           fontSize: '12px',
@@ -203,7 +203,7 @@ const ForwardModal = ({
           })}
         </div>
 
-        Forward button:
+        {/* Forward button */}
         <button
           onClick={handleForward}
           disabled={loading || selected.length === 0}

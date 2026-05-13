@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket, isUserOnline, getUserLastSeen } from '../context/SocketContext';
 import api from '../utils/axios';
@@ -11,6 +11,8 @@ import TypingIndicator from '../components/TypingIndicator';
 import CreateGroupModal from '../components/CreateGroupModal';
 import playNotificationSound from '../utils/sound';
 import ForwardModal from '../components/ForwardModal';
+import SettingsModal from '../components/SettingsModal';
+import ContactInfoPanel from '../components/ContactInfoPanel';
 
 const Chat = () => {
   const { user, logout, updateUser } = useAuth();
@@ -39,8 +41,16 @@ const Chat = () => {
   const [audioPreview, setAudioPreview] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [forwardMessage, setForwardMessage] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showContactInfo, setShowContactInfo] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [editContent, setEditContent] = useState('');
+  const [mobileSidebar, setMobileSidebar] = useState(true);
 
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -50,7 +60,31 @@ const Chat = () => {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    if (user?.theme) {
+      const applyTheme = (themeName) => {
+        if (themeName === 'system') {
+          const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+        } else {
+          document.documentElement.setAttribute('data-theme', themeName);
+        }
+      };
+      
+      applyTheme(user.theme);
+
+      // Listen for system theme changes if set to system
+      if (user.theme === 'system') {
+        const matcher = window.matchMedia('(prefers-color-scheme: dark)');
+        const listener = (e) => document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+        matcher.addEventListener('change', listener);
+        return () => matcher.removeEventListener('change', listener);
+      }
+    }
+  }, [user?.theme]);
+
+  useEffect(() => {
     fetchConversations();
+    // ... rest of the existing useEffect content
   }, []);
 
   useEffect(() => {
@@ -137,6 +171,18 @@ const Chat = () => {
       toast.error(message || 'Cannot send message to this user');
     });
 
+    socket.on('message:edited', (updatedMessage) => {
+      setMessages((prev) =>
+        prev.map((msg) => (msg._id === updatedMessage._id ? updatedMessage : msg))
+      );
+    });
+
+    socket.on('message:pinned', ({ messageId, isPinned }) => {
+      setMessages((prev) =>
+        prev.map((msg) => (msg._id === messageId ? { ...msg, isPinned } : msg))
+      );
+    });
+
     return () => {
       socket.off('message:receive');
       socket.off('message:status');
@@ -144,6 +190,8 @@ const Chat = () => {
       socket.off('typing:stop');
       socket.off('reaction:update');
       socket.off('message:blocked');
+      socket.off('message:edited');
+      socket.off('message:pinned');
     };
   }, [socket, selectedConversation]);
 
@@ -165,13 +213,69 @@ const Chat = () => {
 
   const fetchMessages = async (conversationId) => {
     setLoadingMessages(true);
+    setHasMoreMessages(true);
     try {
       const { data } = await api.get('/chat/messages/' + conversationId);
       setMessages(data.messages);
+      setHasMoreMessages(data.hasMore || false);
     } catch (error) {
       console.error('Failed to fetch messages:', error);
     } finally {
       setLoadingMessages(false);
+    }
+  };
+
+  const loadMoreMessages = async () => {
+    if (!selectedConversation || loadingMore || !hasMoreMessages || messages.length === 0) return;
+    setLoadingMore(true);
+    try {
+      const oldest = messages[0]?.createdAt;
+      const { data } = await api.get('/chat/messages/' + selectedConversation._id + '?before=' + oldest);
+      setMessages((prev) => [...data.messages, ...prev]);
+      setHasMoreMessages(data.hasMore || false);
+    } catch (error) {
+      console.error('Failed to load more:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const handleEditMessage = async (messageId, content) => {
+    try {
+      const { data } = await api.put('/chat/message/' + messageId + '/edit', { content });
+      setMessages((prev) => prev.map((m) => (m._id === messageId ? data.message : m)));
+      socket.emit('message:edit', {
+        messageId, participants: selectedConversation.participants.map((p) => p._id),
+      });
+      setEditingMessage(null);
+      setEditContent('');
+      toast.success('Message edited');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to edit');
+    }
+  };
+
+  const handlePinMessage = async (messageId) => {
+    try {
+      const { data } = await api.post('/chat/message/' + messageId + '/pin');
+      setMessages((prev) => prev.map((m) => (m._id === messageId ? data.message : m)));
+      socket.emit('message:pin', {
+        messageId, isPinned: data.message.isPinned,
+        conversationId: selectedConversation._id,
+        participants: selectedConversation.participants.map((p) => p._id),
+      });
+      toast.success(data.message.isPinned ? 'Message pinned' : 'Message unpinned');
+    } catch (err) {
+      toast.error('Failed to pin message');
+    }
+  };
+
+  const handleStarMessage = async (messageId) => {
+    try {
+      const { data } = await api.post('/chat/message/' + messageId + '/star');
+      toast.success(data.starred ? 'Message starred' : 'Message unstarred');
+    } catch (err) {
+      toast.error('Failed to star message');
     }
   };
 
@@ -188,6 +292,8 @@ const Chat = () => {
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation);
     setShowSearch(false);
+    setShowContactInfo(false);
+    setMobileSidebar(false);
     setReplyingTo(null);
     setShowEmojiPicker(false);
     setUnreadCounts((prev) => ({ ...prev, [conversation._id]: 0 }));
@@ -408,122 +514,55 @@ const Chat = () => {
     : null;
 
   return (
-    <div className="flex h-screen bg-gray-900">
-      <div className="w-80 bg-gray-800 flex flex-col border-r border-gray-700">
+    <div className="flex h-screen bg-gray-900 overflow-hidden">
+      {/* Sidebar */}
+      <div className={`${mobileSidebar ? 'flex' : 'hidden'} md:flex w-full md:w-80 flex-col border-r h-full`}
+        style={{ backgroundColor: 'var(--bg-sidebar)', borderColor: 'var(--border-color)' }}>
         <div style={{
-          padding: '12px 16px',
+          padding: '16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          borderBottom: '1px solid #374151',
-          backgroundColor: '#162029'
+          borderBottom: '1px solid var(--border-color)',
+          backgroundColor: 'var(--bg-sidebar)'
         }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            flexWrap: 'wrap',
-            justifyContent: 'flex-end'
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{fontSize: '24px'}}>💬</span>
-            <span style={{
-              color: 'white',
-              fontWeight: 'bold',
+            <span style={{ color: 'white', fontWeight: 'bold', fontSize: '18px' }}>ChatSphere</span>
+          </div>
+          
+          <button
+            onClick={() => setShowCreateGroup(true)}
+            title="Create Group"
+            style={{
+              background: 'rgba(14,165,233,0.1)',
+              border: '1px solid rgba(14,165,233,0.2)',
+              color: '#0ea5e9',
+              borderRadius: '50%',
+              width: '36px',
+              height: '36px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               fontSize: '18px'
-            }}>
-              ChatSphere
-            </span>
-          </div>
-
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            flexWrap: 'wrap',
-            justifyContent: 'flex-end'
-          }}>
-            <button
-              onClick={() => setShowCreateGroup(true)}
-              title="Create Group"
-              style={{
-                background: 'none',
-                border: '1px solid #374151',
-                color: '#9ca3af',
-                borderRadius: '8px',
-                padding: '4px 8px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-            >
-              👥 <span>New Group</span>
-            </button>
-
-            <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              title={soundEnabled ? 'Mute' : 'Unmute'}
-              style={{
-                background: 'none',
-                border: 'none',
-                fontSize: '18px',
-                cursor: 'pointer',
-                color: soundEnabled ? '#0ea5e9' : '#9ca3af',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              {soundEnabled ? '🔔' : '🔕'}
-            </button>
-
-            <div
-              onClick={() => setShowProfile(true)}
-              title="Profile"
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                backgroundColor: '#0ea5e9',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontWeight: 'bold',
-                fontSize: '14px',
-                cursor: 'pointer',
-                flexShrink: 0
-              }}
-            >
-              {user?.name?.[0]?.toUpperCase()}
-            </div>
-
-            <button
-              onClick={logout}
-              style={{
-                background: 'none',
-                border: '1px solid #374151',
-                color: '#9ca3af',
-                borderRadius: '8px',
-                padding: '4px 10px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                flexBasis: '100%',
-                textAlign: 'center'
-              }}
-            >
-              Logout
-            </button>
-          </div>
+            }}
+          >
+            ➕
+          </button>
         </div>
 
-        <div className="p-3 border-b border-gray-700">
+        <div className="p-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
           <input
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
             placeholder="Search users..."
-            className="w-full bg-gray-700 text-white rounded-full px-4 py-2 text-sm outline-none"
+            className="w-full rounded-full px-4 py-2 text-sm outline-none border transition-all"
+            style={{ 
+              backgroundColor: 'var(--bg-main)', 
+              color: 'var(--text-main)',
+              borderColor: 'var(--border-color)'
+            }}
           />
         </div>
 
@@ -540,15 +579,15 @@ const Chat = () => {
                   {u.name?.[0]?.toUpperCase()}
                 </div>
                 <div>
-                  <p className="text-white text-sm">{u.name}</p>
-                  <p className="text-gray-400 text-xs">{u.email}</p>
+                  <p className="text-sm" style={{ color: 'var(--text-main)' }}>{u.name}</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{u.email}</p>
                 </div>
               </div>
             ))}
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto">
-            <p className="text-xs text-gray-400 px-4 py-2">Conversations</p>
+            <p className="text-xs px-4 py-2" style={{ color: 'var(--text-muted)' }}>Conversations</p>
             {conversations.map((conv) => {
               const isGroup = conv.isGroup;
               const displayParticipant = isGroup
@@ -566,11 +605,13 @@ const Chat = () => {
                 <div
                   key={conv._id}
                   onClick={() => handleSelectConversation(conv)}
-                  className={
-                    isSelected
-                      ? 'bg-gray-700 flex items-center gap-3 px-4 py-3 cursor-pointer'
-                      : 'flex items-center gap-3 px-4 py-3 hover:bg-gray-700 cursor-pointer'
-                  }
+                  className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors"
+                  style={{ 
+                    backgroundColor: isSelected ? 'rgba(14,165,233,0.1)' : 'transparent',
+                    borderLeft: isSelected ? '3px solid #0ea5e9' : '3px solid transparent'
+                  }}
+                  onMouseEnter={e => !isSelected && (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)')}
+                  onMouseLeave={e => !isSelected && (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
                   <div className="relative">
                     <div
@@ -589,24 +630,26 @@ const Chat = () => {
                           height: '12px',
                           backgroundColor: '#10b981',
                           borderRadius: '50%',
-                          border: '2px solid #1e2a35',
+                          border: '2px solid var(--bg-sidebar)',
                         }}
                       />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex justify-between">
-                      <p className="text-white text-sm font-medium">{displayName}</p>
-                      <p className="text-gray-400 text-xs">
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-main)' }}>
+                        {displayName}
+                      </p>
+                      <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
                         {formatTime(conv.lastMessageTime)}
                       </p>
                     </div>
-                    <div className="flex justify-between">
-                      <p className="text-gray-400 text-xs truncate">
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
                         {conv.lastMessage?.content || 'Start chatting'}
                       </p>
                       {unreadCounts[conv._id] > 0 && (
-                        <span className="bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center ml-1">
+                        <span className="bg-blue-500 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center ml-2">
                           {unreadCounts[conv._id]}
                         </span>
                       )}
@@ -617,27 +660,93 @@ const Chat = () => {
             })}
           </div>
         )}
+
+        {/* Sidebar Footer */}
+        <div style={{
+          padding: '12px 16px',
+          borderTop: '1px solid var(--border-color)',
+          backgroundColor: 'var(--bg-sidebar)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: 'auto'
+        }}>
+          <div 
+            onClick={() => setShowProfile(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+          >
+            <div style={{
+              width: '36px', height: '36px', borderRadius: '50%',
+              backgroundColor: '#0ea5e9', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', color: 'white', fontWeight: 'bold'
+            }}>
+              {user?.name?.[0]?.toUpperCase()}
+            </div>
+            <div style={{ overflow: 'hidden' }}>
+              <p style={{ color: 'white', fontSize: '13px', fontWeight: '600', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user?.name}
+              </p>
+              <p style={{ color: '#10b981', fontSize: '10px', margin: 0 }}>Online</p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              title={soundEnabled ? 'Mute' : 'Unmute'}
+              style={{ background: 'none', border: 'none', fontSize: '16px', cursor: 'pointer', color: soundEnabled ? '#0ea5e9' : '#9ca3af' }}
+            >
+              {soundEnabled ? '🔔' : '🔕'}
+            </button>
+            <button
+              onClick={() => setShowSettings(true)}
+              title="Settings"
+              style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#9ca3af' }}
+            >
+              ⚙️
+            </button>
+            <button
+              onClick={logout}
+              title="Logout"
+              style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#ef4444' }}
+            >
+              🚪
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col" style={{ backgroundColor: 'var(--bg-main)' }}>
         {!selectedConversation ? (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="hidden md:flex flex-1 items-center justify-center" style={{ backgroundColor: 'var(--bg-main)' }}>
             <div className="text-center">
-              <div className="text-6xl mb-4">💬</div>
-              <p className="text-gray-400">
-                Select a conversation to start chatting
-              </p>
+              <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg"
+                style={{ backgroundColor: 'var(--bg-sidebar)' }}>
+                <span className="text-4xl">💬</span>
+              </div>
+              <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--text-main)' }}>Welcome to ChatSphere</h2>
+              <p style={{ color: 'var(--text-muted)' }}>Select a conversation to start chatting</p>
             </div>
           </div>
         ) : (
-          <>
-            <div className="p-4 bg-gray-800 border-b border-gray-700 flex items-center justify-between">
+          <div className={`${mobileSidebar ? 'hidden' : 'flex'} flex-1 flex-col relative h-full overflow-hidden`}
+            style={{ backgroundColor: 'var(--bg-main)' }}>
+            {/* Chat Header */}
+            <div className="p-4 border-b flex items-center justify-between z-10 shadow-sm"
+              style={{ backgroundColor: 'var(--bg-sidebar)', borderColor: 'var(--border-color)' }}>
               <div className="flex items-center gap-3">
+                <button
+                  className="md:hidden text-gray-400 mr-2 hover:text-white"
+                  onClick={() => setMobileSidebar(true)}
+                >
+                  ⬅️
+                </button>
                 <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white"
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-white cursor-pointer hover:opacity-80 transition-opacity"
                   style={{
                     backgroundColor: selectedConversation?.isGroup ? '#10b981' : '#0ea5e9',
                   }}
+                  onClick={() => setShowContactInfo(true)}
                 >
                   {selectedConversation?.isGroup
                     ? selectedConversation.groupName?.[0]?.toUpperCase()
@@ -668,12 +777,21 @@ const Chat = () => {
                 </p>
                 </div>
               </div>
-              <button
-                onClick={() => setShowSearch(!showSearch)}
-                className="text-gray-400 hover:text-white p-2"
-              >
-                🔍
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <button
+                  onClick={() => setShowSearch(!showSearch)}
+                  className="text-gray-400 hover:text-white p-2"
+                >
+                  🔍
+                </button>
+                <button
+                  onClick={() => setShowContactInfo(!showContactInfo)}
+                  className="text-gray-400 hover:text-white p-2"
+                  title="Contact Info"
+                >
+                  ℹ️
+                </button>
+              </div>
             </div>
 
             {showSearch && (
@@ -687,9 +805,22 @@ const Chat = () => {
               />
             )}
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-1">
+            <div
+              className="flex-1 overflow-y-auto p-4 flex flex-col gap-1"
+            >
+              {hasMoreMessages && (
+                <button
+                  onClick={loadMoreMessages}
+                  disabled={loadingMore}
+                  className="mx-auto my-4 text-blue-400 text-xs hover:underline disabled:opacity-50"
+                >
+                  {loadingMore ? 'Loading...' : 'Load previous messages'}
+                </button>
+              )}
               {loadingMessages ? (
-                <div className="text-center text-gray-400">Loading...</div>
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
               ) : (
                 messages.map((message) => (
                   <div id={message._id} key={message._id}>
@@ -703,6 +834,13 @@ const Chat = () => {
                       }}
                       onReact={handleReaction}
                       onForward={(msg) => setForwardMessage(msg)}
+                      onPin={() => handlePinMessage(message._id)}
+                      onStar={() => handleStarMessage(message._id)}
+                      onEdit={() => {
+                        setEditingMessage(message);
+                        setEditContent(message.content);
+                        inputRef.current?.focus();
+                      }}
                     />
                   </div>
                 ))
@@ -732,7 +870,7 @@ const Chat = () => {
               </div>
             )}
 
-            <div className="p-4 bg-gray-800 border-t border-gray-700">
+            <div className="p-4 border-t" style={{ backgroundColor: 'var(--bg-sidebar)', borderColor: 'var(--border-color)' }}>
               <div className="relative">
                 {showEmojiPicker && (
                   <EmojiPickerComponent
@@ -917,27 +1055,67 @@ const Chat = () => {
                 </button>
                 <input
                   ref={inputRef}
-                  value={newMessage}
+                  value={editingMessage ? editContent : newMessage}
                   onChange={(e) => {
-                    setNewMessage(e.target.value);
-                    handleTyping();
+                    if (editingMessage) setEditContent(e.target.value);
+                    else {
+                      setNewMessage(e.target.value);
+                      handleTyping();
+                    }
                   }}
                   onKeyPress={(e) => {
-                    if (e.key === 'Enter') handleSendMessage();
+                    if (e.key === 'Enter') {
+                      if (editingMessage) handleEditMessage(editingMessage._id, editContent);
+                      else handleSendMessage();
+                    }
                   }}
-                  placeholder="Type a message..."
-                  className="flex-1 bg-gray-700 text-white rounded-full px-4 py-2 outline-none"
+                  placeholder={editingMessage ? "Edit message..." : "Type a message..."}
+                  className={`flex-1 rounded-full px-4 py-2 outline-none border transition-all`}
+                  style={{ 
+                    backgroundColor: 'var(--bg-main)', 
+                    color: 'var(--text-main)',
+                    borderColor: editingMessage ? '#eab308' : 'var(--border-color)'
+                  }}
                 />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!newMessage.trim() && !selectedImage}
-                  className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-full w-10 h-10 flex items-center justify-center"
-                >
-                  ➤
-                </button>
+                {editingMessage ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEditMessage(editingMessage._id, editContent)}
+                      className="bg-yellow-600 hover:bg-yellow-700 text-white rounded-full w-10 h-10 flex items-center justify-center"
+                    >
+                      ✓
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingMessage(null);
+                        setEditContent('');
+                      }}
+                      className="bg-gray-600 hover:bg-gray-700 text-white rounded-full w-10 h-10 flex items-center justify-center"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!newMessage.trim() && !selectedImage}
+                    className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-full w-10 h-10 flex items-center justify-center"
+                  >
+                    ➤
+                  </button>
+                )}
               </div>
             </div>
-          </>
+          </div>
+        )}
+
+        {showContactInfo && selectedConversation && (
+          <ContactInfoPanel
+            conversation={selectedConversation}
+            currentUser={user}
+            onClose={() => setShowContactInfo(false)}
+            onlineUsers={onlineUsers}
+          />
         )}
       </div>
 
@@ -971,6 +1149,17 @@ const Chat = () => {
           conversations={conversations}
           socket={socket}
           currentUser={user}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsModal
+          user={user}
+          onClose={() => setShowSettings(false)}
+          onUpdate={(u) => {
+            updateUser(u);
+            setShowSettings(false);
+          }}
         />
       )}
     </div>
