@@ -92,7 +92,7 @@ const logoutUser = async (req, res, next) => {
     res.cookie('chatsphere_token', '', {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
+      sameSite: isProduction ? 'none' : 'Lax',
       path: '/',
       maxAge: 0,
       expires: new Date(0),

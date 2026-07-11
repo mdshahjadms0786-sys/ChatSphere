@@ -28,8 +28,8 @@ export const CheckIcon = () => (
   </svg>
 );
 
-export const DoubleCheckIcon = () => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+export const DoubleCheckIcon = ({ color }) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill={color || "currentColor"}>
     <path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4-5.59L19.59 4 8.24 15.35l-1.41-1.41L19.59 4zM2 6.34l1.41 1.41L21.59 20.41 23 19l-9-9-2 2-3.59-3.59z" />
   </svg>
 );

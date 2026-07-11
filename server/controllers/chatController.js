@@ -62,9 +62,13 @@ const getMessages = async (req, res) => {
       deletedFor: { $ne: req.user._id },
     };
 
-    // Cursor-based pagination
+    // Cursor-based pagination (using _id as tiebreaker for reliability)
     if (before) {
-      query.createdAt = { $lt: new Date(before) };
+      const beforeDate = new Date(before);
+      query.$or = [
+        { createdAt: { $lt: beforeDate } },
+        { createdAt: beforeDate, _id: { $lt: before } }
+      ];
     }
 
     const messages = await Message.find(query)
@@ -237,26 +241,6 @@ const searchMessages = async (req, res) => {
       .limit(20);
 
     res.status(200).json({ success: true, messages });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-const updateProfile = async (req, res) => {
-  try {
-    const { name, about, avatar } = req.body;
-
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (name) user.name = name;
-    if (about !== undefined) user.about = about;
-    if (avatar !== undefined) user.avatar = avatar;
-
-    await user.save();
-    res.status(200).json({ success: true, user });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -794,7 +778,7 @@ const deleteAccount = async (req, res) => {
     res.cookie('chatsphere_token', '', {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
+      sameSite: isProduction ? 'none' : 'Lax',
       path: '/',
       maxAge: 0,
     });
@@ -853,7 +837,6 @@ module.exports = {
   addReaction,
   markAsRead,
   searchMessages,
-  updateProfile,
   createGroup,
   getGroupInfo,
   addGroupMember,

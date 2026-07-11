@@ -51,7 +51,7 @@ const MessageBubble = ({
 
   const renderStatus = () => {
     if (message.status === "read") {
-      return <DoubleCheckIcon />;
+      return <DoubleCheckIcon color="#53bdeb" />;
     } else if (message.status === "delivered") {
       return <DoubleCheckIcon />;
     } else {

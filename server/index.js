@@ -18,10 +18,22 @@ const app = express();
 const server = http.createServer(app);
 
 // Socket-io setup
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'https://chat-sphere-woad.vercel.app',
+  'https://chatsphere-client.vercel.app'
+];
+
 const io = new Server(server, {
   cors: {
     origin: function(origin, callback) {
-      callback(null, true)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true)
+      } else {
+        callback(new Error('Not allowed by CORS'))
+      }
     },
     methods: ['GET', 'POST'],
     credentials: true
@@ -52,17 +64,10 @@ const authLimiter = rateLimit({
 app.use(helmet());
 app.use(cors({
   origin: function(origin, callback) {
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002',
-      'https://chat-sphere-woad.vercel.app',
-      'https://chatsphere-client.vercel.app'
-    ]
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true)
     } else {
-      callback(null, true)
+      callback(new Error('Not allowed by CORS'))
     }
   },
   credentials: true,

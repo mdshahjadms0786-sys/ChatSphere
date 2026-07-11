@@ -10,7 +10,7 @@ const generateToken = (res, userId) => {
   res.cookie('chatsphere_token', token, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
+    sameSite: isProduction ? 'none' : 'Lax',
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });

@@ -65,6 +65,14 @@ module.exports = (io) => {
             });
             return;
           }
+
+          // Also check if sender has blocked receiver
+          if (senderUser && senderUser.blockedUsers.map(id => id.toString()).includes(receiverId.toString())) {
+            socket.emit('message:blocked', {
+              message: 'You have blocked this user'
+            });
+            return;
+          }
         }
 
         const messageData = {
@@ -77,6 +85,28 @@ module.exports = (io) => {
           isForwarded: data.isForwarded || false,
           replyTo: data.replyTo || null,
         };
+
+        // Validate image size (max 5MB for base64)
+        if (data.imageUrl && data.imageUrl.startsWith('data:image')) {
+          const sizeInBytes = Buffer.byteLength(data.imageUrl, 'utf-8');
+          if (sizeInBytes > 5 * 1024 * 1024) {
+            socket.emit('message:error', {
+              message: 'Image size exceeds 5MB limit'
+            });
+            return;
+          }
+        }
+
+        // Validate audio size (max 2MB for base64)
+        if (data.audioUrl && data.audioUrl.startsWith('data:audio')) {
+          const sizeInBytes = Buffer.byteLength(data.audioUrl, 'utf-8');
+          if (sizeInBytes > 2 * 1024 * 1024) {
+            socket.emit('message:error', {
+              message: 'Audio size exceeds 2MB limit'
+            });
+            return;
+          }
+        }
 
         if (data.replyTo) {
           messageData.replyTo = data.replyTo;
