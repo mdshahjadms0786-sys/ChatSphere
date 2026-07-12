@@ -9,14 +9,19 @@ const ProfileModal = ({ user, onClose, onUpdate, currentUser }) => {
   const [blockLoading, setBlockLoading] = useState(false);
   const fileInputRef = React.useRef(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    const checkBlockStatus = async () => {
+      try {
+        const { data } = await api.get('/chat/check-blocked/' + user._id);
+        setIsBlocked(data.isBlocked);
+      } catch(err) {
+        console.log('check block error:', err);
+      }
+    };
     if (user?._id) {
       checkBlockStatus();
     }
   }, [user?._id]);
-
-  const checkBlockStatus = async () => {
     try {
       const { data } = await api.get('/chat/check-blocked/' + user._id);
       setIsBlocked(data.isBlocked);

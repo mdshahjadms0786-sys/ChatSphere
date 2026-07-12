@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket, isUserOnline, getUserLastSeen } from '../context/SocketContext';
 import api from '../utils/axios';
@@ -50,13 +50,16 @@ const Chat = () => {
   const [mobileSidebar, setMobileSidebar] = useState(true);
 
   const messagesEndRef = useRef(null);
-  const messagesContainerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
   const imageInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordingTimerRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const soundEnabledRef = useRef(soundEnabled);
+  soundEnabledRef.current = soundEnabled;
+  const userIdRef = useRef(user?._id);
+  userIdRef.current = user?._id;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -84,7 +87,7 @@ const Chat = () => {
 
   useEffect(() => {
     fetchConversations();
-    // ... rest of the existing useEffect content
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -106,9 +109,11 @@ const Chat = () => {
     }
   }, [messages]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!socket) return;
+
+    const currentUserId = userIdRef.current;
+    const isSoundEnabled = soundEnabledRef.current;
 
     socket.on('message:receive', (message) => {
       if (selectedConversation && message.conversation === selectedConversation._id) {
@@ -119,10 +124,10 @@ const Chat = () => {
           ...prev,
           [message.conversation]: (prev[message.conversation] || 0) + 1,
         }));
-        if (soundEnabled && message.sender._id !== user._id) {
+        if (isSoundEnabled && message.sender._id !== currentUserId) {
           playNotificationSound();
         }
-        if (document.hidden && message.sender._id !== user._id) {
+        if (document.hidden && message.sender._id !== currentUserId) {
           if (Notification.permission === 'granted') {
             new Notification('ChatSphere', {
               body: message.sender.name + ': ' +

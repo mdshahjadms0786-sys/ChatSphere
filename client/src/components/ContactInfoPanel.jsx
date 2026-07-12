@@ -7,8 +7,6 @@ const ContactInfoPanel = ({ conversation, currentUser, onClose, onlineUsers }) =
   const [pinnedMessages, setPinnedMessages] = useState([])
   const [starredMessages, setStarredMessages] = useState([])
   const [activeSection, setActiveSection] = useState(null)
-  const [loading, setLoading] = useState(false)
-
   const isGroup = conversation?.isGroup
   const otherUser = !isGroup
     ? conversation?.participants?.find(p => p._id !== currentUser._id)
@@ -19,6 +17,7 @@ const ContactInfoPanel = ({ conversation, currentUser, onClose, onlineUsers }) =
       fetchSharedMedia()
       fetchPinnedMessages()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation?._id])
 
   const fetchSharedMedia = async () => {
@@ -49,7 +48,6 @@ const ContactInfoPanel = ({ conversation, currentUser, onClose, onlineUsers }) =
   }
 
   const handleExportChat = async () => {
-    setLoading(true)
     try {
       const { data } = await api.get(`/chat/export/${conversation._id}`)
       const blob = new Blob([data.exportText], { type: 'text/plain' })
@@ -63,7 +61,6 @@ const ContactInfoPanel = ({ conversation, currentUser, onClose, onlineUsers }) =
     } catch (err) {
       toast.error('Failed to export chat')
     }
-    setLoading(false)
   }
 
   const handleMuteToggle = async () => {
